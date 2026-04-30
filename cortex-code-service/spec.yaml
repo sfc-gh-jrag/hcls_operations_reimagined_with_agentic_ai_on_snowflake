@@ -1,0 +1,17 @@
+# Example SPCS spec — replace placeholders with your values.
+# See deploy.env.example for required variables.
+spec:
+  containers:
+  - name: cortex-code
+    image: <REGISTRY>/<PLATFORM_DB>/spcs/cortex_code_repo/cortex-code-service:latest
+    resources:
+      limits:
+        memory: "64Gi"
+        cpu: "16"
+      requests:
+        memory: "16Gi"
+        cpu: "8"
+  endpoints:
+  - name: "api"
+    port: 8080
+    public: true

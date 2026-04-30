@@ -1,0 +1,776 @@
+name: denied_claims_model
+description: >
+  Semantic model for the Denied Claims Handling system. Covers denials, claims, members,
+  prior authorizations, payer contracts, historical overturn rates, work items, appeal drafts,
+  and investigation notes. Used by the Interactive Agent (Cortex Analyst tool) to answer
+  specialist questions via natural language.
+
+tables:
+
+  - name: denials
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIALS
+    description: >
+      Core denial records. Each row is one denial event for a claim.
+      Contains denial codes, amounts, filing/appeal deadlines, and processing status.
+    primary_key:
+      columns: [DENIAL_ID]
+
+    dimensions:
+      - name: denial_id
+        synonyms: [denial number, denial record, DNL ID]
+        description: Unique identifier for the denial record
+        expr: DENIAL_ID
+        data_type: TEXT
+
+      - name: claim_id
+        synonyms: [claim number, CLM ID]
+        description: The claim this denial is associated with
+        expr: CLAIM_ID
+        data_type: TEXT
+
+      - name: denial_code
+        synonyms: [CO code, remark code, CARC code, denial reason code, denial type]
+        description: >
+          Adjustment reason code explaining why the claim was denied.
+          Common codes: CO-15 (prior auth required), CO-50 (non-covered),
+          CO-97 (not covered per plan), CO-56 (medical necessity), CO-197 (auth not found).
+        expr: DENIAL_CODE
+        data_type: TEXT
+
+      - name: denial_reason
+        synonyms: [denial description, why was it denied, denial explanation]
+        description: Full text description of the denial reason
+        expr: DENIAL_REASON
+        data_type: TEXT
+
+      - name: denial_date
+        synonyms: [date denied, when was it denied]
+        description: Date the denial was issued by the payer
+        expr: DENIAL_DATE
+        data_type: DATE
+
+      - name: filing_deadline
+        synonyms: [timely filing deadline, filing window end, claim filing due date, last day to file]
+        description: Last date to re-file or resubmit the claim
+        expr: FILING_DEADLINE
+        data_type: DATE
+
+      - name: appeal_deadline
+        synonyms: [appeal due date, appeal window end, last date to appeal, appeal cutoff]
+        description: Last date to submit a formal appeal for this denial
+        expr: APPEAL_DEADLINE
+        data_type: DATE
+
+      - name: payer_remark
+        synonyms: [payer note, payer message, EOB note, explanation of benefits note]
+        description: Additional remark text from the payer on the denial
+        expr: PAYER_REMARK
+        data_type: TEXT
+
+      - name: processed_by_agent
+        synonyms: [agent processed, worker agent status, has the agent processed this]
+        description: Whether the Worker Agent (Cortex Code) has processed this denial
+        expr: PROCESSED_BY_AGENT
+        data_type: BOOLEAN
+
+    time_dimensions:
+      - name: denial_date_dim
+        synonyms: [denial month, denial year, when denied]
+        description: Date dimension on denial issuance date
+        expr: DENIAL_DATE
+        data_type: DATE
+
+    measures:
+      - name: denial_amount
+        synonyms: [denied amount, amount at risk, dollar value, revenue at risk]
+        description: Dollar amount of the denied claim
+        expr: DENIAL_AMOUNT
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: denial_count
+        synonyms: [number of denials, how many denials, count of denials]
+        description: Count of denial records
+        expr: COUNT(DENIAL_ID)
+        data_type: NUMBER
+        default_aggregation: count
+
+      - name: filing_days_remaining
+        synonyms: [days left to file, filing window remaining, timely filing days left, how many days to file]
+        description: Number of days remaining before the timely filing deadline expires (negative = expired)
+        expr: DATEDIFF('day', CURRENT_DATE(), FILING_DEADLINE)
+        data_type: NUMBER
+
+      - name: appeal_days_remaining
+        synonyms: [days left to appeal, appeal window remaining, how many days to appeal, appeal urgency, how urgent is this]
+        description: Number of days remaining before the appeal deadline expires (negative = expired)
+        expr: DATEDIFF('day', CURRENT_DATE(), APPEAL_DEADLINE)
+        data_type: NUMBER
+
+      - name: days_since_denial
+        synonyms: [age of denial, how old is the denial, denial age]
+        description: Number of days since the denial was issued
+        expr: DATEDIFF('day', DENIAL_DATE, CURRENT_DATE())
+        data_type: NUMBER
+
+  - name: claims
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: CLAIMS
+    description: >
+      Full claim records. Contains provider info, patient diagnosis, CPT codes,
+      billed amounts, payer assignment, and dates of service.
+    primary_key:
+      columns: [CLAIM_ID]
+
+    dimensions:
+      - name: claim_id
+        synonyms: [claim number, CLM ID]
+        description: Unique claim identifier
+        expr: CLAIM_ID
+        data_type: TEXT
+
+      - name: member_id
+        synonyms: [patient ID, member]
+        description: Member/patient on this claim
+        expr: MEMBER_ID
+        data_type: TEXT
+
+      - name: provider_name
+        synonyms: [doctor, physician, provider, who rendered the service, treating provider]
+        description: Name of the provider or practice that submitted the claim
+        expr: PROVIDER_NAME
+        data_type: TEXT
+
+      - name: provider_npi
+        synonyms: [NPI, individual NPI, provider NPI, billing NPI]
+        description: Individual National Provider Identifier of the billing provider
+        expr: PROVIDER_NPI
+        data_type: TEXT
+
+      - name: group_npi
+        synonyms: [group NPI, organization NPI, group billing NPI, practice NPI, org NPI]
+        description: >
+          Group/organization NPI. Critical for authorization lookups — 40% of CO-15/CO-197
+          denials are because the auth was filed under the group NPI but the claim was billed
+          under the individual NPI.
+        expr: GROUP_NPI
+        data_type: TEXT
+
+      - name: payer_id
+        synonyms: [payer, insurance company, health plan, insurer]
+        description: >
+          Payer identifier. Values: PAY-BCBS (Blue Cross Blue Shield), PAY-AETNA (Aetna),
+          PAY-UHC (UnitedHealthcare), PAY-CIG (Cigna).
+        expr: PAYER_ID
+        data_type: TEXT
+
+      - name: date_of_service
+        synonyms: [DOS, service date, when was the service rendered, procedure date]
+        description: Date the medical service was rendered
+        expr: DATE_OF_SERVICE
+        data_type: DATE
+
+      - name: primary_diagnosis
+        synonyms: [ICD code, diagnosis code, primary ICD, principal diagnosis]
+        description: Primary ICD-10 diagnosis code
+        expr: PRIMARY_DIAGNOSIS
+        data_type: TEXT
+
+      - name: diagnosis_description
+        synonyms: [diagnosis name, what is the diagnosis, condition, medical condition]
+        description: Human-readable description of the primary diagnosis
+        expr: DIAGNOSIS_DESCRIPTION
+        data_type: TEXT
+
+      - name: claim_status
+        synonyms: [current claim status, is the claim paid, claim state]
+        description: Current status of the claim (DENIED, PAID, PENDING, ADJUSTED)
+        expr: CLAIM_STATUS
+        data_type: TEXT
+
+    measures:
+      - name: total_billed
+        synonyms: [billed amount, charged amount, how much was billed, claim value]
+        description: Total dollar amount billed to the payer
+        expr: TOTAL_BILLED
+        data_type: NUMBER
+        default_aggregation: sum
+
+  - name: members
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: MEMBERS
+    description: >
+      Patient/member records. Contains demographics, plan enrollment, payer assignment.
+    primary_key:
+      columns: [MEMBER_ID]
+
+    dimensions:
+      - name: member_id
+        synonyms: [patient ID, member number]
+        description: Unique member identifier
+        expr: MEMBER_ID
+        data_type: TEXT
+
+      - name: patient_name
+        synonyms: [patient name, member name, who is the patient, patient full name]
+        description: Full name of the member/patient
+        expr: FIRST_NAME || ' ' || LAST_NAME
+        data_type: TEXT
+
+      - name: plan_id
+        synonyms: [health plan, insurance plan, member plan, benefit plan]
+        description: The health plan the member is enrolled in
+        expr: PLAN_ID
+        data_type: TEXT
+
+      - name: payer_id
+        synonyms: [member payer, member insurer, member insurance]
+        description: Payer associated with the member's plan
+        expr: PAYER_ID
+        data_type: TEXT
+
+      - name: enrollment_date
+        synonyms: [member since, enrollment start, when did they enroll, coverage start]
+        description: Date the member enrolled in their current plan
+        expr: ENROLLMENT_DATE
+        data_type: DATE
+
+      - name: termination_date
+        synonyms: [coverage end, member terminated, disenrollment date, when did coverage end]
+        description: Date the member's coverage ended (NULL if still active)
+        expr: TERMINATION_DATE
+        data_type: DATE
+
+  - name: prior_auth
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: PRIOR_AUTH
+    description: >
+      Prior authorization records. Critical for CO-15 and CO-197 denials.
+      Always search by both PROVIDER_NPI and GROUP_NPI — authorizations are frequently
+      filed under the group NPI even when the claim is billed under an individual NPI.
+    primary_key:
+      columns: [AUTH_ID]
+
+    dimensions:
+      - name: auth_id
+        synonyms: [authorization number, auth number, PA number, prior auth ID, auth ID]
+        description: Unique identifier for the authorization record
+        expr: AUTH_ID
+        data_type: TEXT
+
+      - name: auth_reference
+        synonyms: [payer auth reference, payer approval number, authorization reference, payer PA number]
+        description: Payer-issued authorization reference number
+        expr: AUTH_REFERENCE
+        data_type: TEXT
+
+      - name: member_id
+        synonyms: [member, patient on this auth]
+        description: Member this authorization is for
+        expr: MEMBER_ID
+        data_type: TEXT
+
+      - name: provider_npi
+        synonyms: [individual NPI on auth, billing NPI on auth]
+        description: Individual provider NPI on the authorization record
+        expr: PROVIDER_NPI
+        data_type: TEXT
+
+      - name: group_npi
+        synonyms: [group NPI on auth, organization NPI on auth, group billing NPI on auth]
+        description: >
+          Group NPI on the authorization record. When a CO-197 or CO-15 denial says no auth
+          was found, always check if one exists under the group NPI.
+        expr: GROUP_NPI
+        data_type: TEXT
+
+      - name: cpt_code
+        synonyms: [procedure code on auth, authorized procedure, what procedure was authorized]
+        description: CPT procedure code covered by this authorization
+        expr: CPT_CODE
+        data_type: TEXT
+
+      - name: plan_id
+        synonyms: [plan on auth, health plan for auth]
+        description: Health plan under which the authorization was obtained
+        expr: PLAN_ID
+        data_type: TEXT
+
+      - name: auth_status
+        synonyms: [authorization status, is auth approved, auth outcome, was it approved]
+        description: Status of the authorization — APPROVED, PENDING, DENIED
+        expr: AUTH_STATUS
+        data_type: TEXT
+
+      - name: effective_date
+        synonyms: [auth start date, authorization valid from, auth begin date]
+        description: Date the authorization becomes effective
+        expr: EFFECTIVE_DATE
+        data_type: DATE
+
+      - name: expiration_date
+        synonyms: [auth expiry, authorization expires, auth end date, when does auth expire]
+        description: Date the authorization expires (NULL if open-ended)
+        expr: EXPIRATION_DATE
+        data_type: DATE
+
+      - name: auth_notes
+        synonyms: [authorization notes, auth comment, auth details, auth context]
+        description: Free-text notes on the authorization record
+        expr: NOTES
+        data_type: TEXT
+
+  - name: contracts
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: CONTRACTS
+    description: >
+      Payer contract terms. Contains timely filing windows, appeal windows, auth lookback
+      periods, and general contract notes. Use this to answer questions about filing deadlines
+      and appeal rights for any specific payer.
+    primary_key:
+      columns: [CONTRACT_ID]
+
+    dimensions:
+      - name: contract_id
+        synonyms: [contract number, agreement ID]
+        description: Unique contract identifier
+        expr: CONTRACT_ID
+        data_type: TEXT
+
+      - name: payer_id
+        synonyms: [payer, insurer, health plan on contract]
+        description: Payer this contract is with
+        expr: PAYER_ID
+        data_type: TEXT
+
+      - name: payer_name
+        synonyms: [insurance company name, payer full name, who is the payer]
+        description: Full name of the payer
+        expr: PAYER_NAME
+        data_type: TEXT
+
+      - name: contract_name
+        synonyms: [agreement name, contract title]
+        description: Name/title of the provider-payer contract
+        expr: CONTRACT_NAME
+        data_type: TEXT
+
+      - name: expiration_date
+        synonyms: [contract expiry, agreement end, when does contract expire]
+        description: Date the contract expires
+        expr: EXPIRATION_DATE
+        data_type: DATE
+
+      - name: contract_notes
+        synonyms: [contract details, contract terms, contract rules, what does the contract say]
+        description: Key contract terms, billing requirements, and special provisions
+        expr: NOTES
+        data_type: TEXT
+
+    measures:
+      - name: timely_filing_days
+        synonyms: [filing window, days to file, timely filing limit, how long to file, filing deadline days]
+        description: Number of days from date of service to submit the initial claim
+        expr: TIMELY_FILING_DAYS
+        data_type: NUMBER
+
+      - name: appeal_window_days
+        synonyms: [appeal window, days to appeal, appeal time limit, how long to appeal, appeal deadline days]
+        description: Number of days from denial date to submit a formal appeal
+        expr: APPEAL_WINDOW_DAYS
+        data_type: NUMBER
+
+      - name: auth_lookback_days
+        synonyms: [auth lookback, retroactive auth window, how far back for retroactive auth]
+        description: Number of days back the payer will consider a retroactive authorization request
+        expr: AUTH_LOOKBACK_DAYS
+        data_type: NUMBER
+
+  - name: denial_history
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_HISTORY
+    description: >
+      Historical denial patterns and overturn rates by payer, denial code, and CPT code.
+      Use this to answer questions about likelihood of appeal success, how similar cases
+      resolved in the past, and what documentation typically leads to overturn.
+    primary_key:
+      columns: [HISTORY_ID]
+
+    dimensions:
+      - name: payer_id
+        synonyms: [payer, insurer, which insurance company]
+        description: Payer this historical pattern applies to
+        expr: PAYER_ID
+        data_type: TEXT
+
+      - name: denial_code
+        synonyms: [CO code, remark code, denial type in history]
+        description: The denial reason code this pattern applies to
+        expr: DENIAL_CODE
+        data_type: TEXT
+
+      - name: denial_reason
+        synonyms: [why the denial, denial description in history]
+        description: Description of the denial reason
+        expr: DENIAL_REASON
+        data_type: TEXT
+
+      - name: cpt_code
+        synonyms: [procedure code in history, CPT in history]
+        description: CPT procedure code this historical pattern is scoped to
+        expr: CPT_CODE
+        data_type: TEXT
+
+      - name: history_notes
+        synonyms: [what works, appeal tips, overturn tips, historical pattern notes, how to win these]
+        description: Notes on what documentation typically leads to successful overturn for this pattern
+        expr: NOTES
+        data_type: TEXT
+
+    measures:
+      - name: total_denials_historical
+        synonyms: [how many denials historically, number of similar denials]
+        description: Total number of denials in this historical pattern
+        expr: TOTAL_DENIALS
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_appealed
+        synonyms: [how many appealed historically, number appealed]
+        description: Number of these denials where an appeal was filed
+        expr: TOTAL_APPEALED
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: total_overturned
+        synonyms: [how many won, number overturned, successful appeals historically]
+        description: Number of appeals successfully overturned for this pattern
+        expr: TOTAL_OVERTURNED
+        data_type: NUMBER
+        default_aggregation: sum
+
+      - name: historical_overturn_rate
+        synonyms: [overturn rate, success rate, appeal success rate, win rate, likelihood of success, chance of winning, how often do we win]
+        description: >
+          Percentage of appeals overturned for this payer/code combination.
+          Above 70% = strong case; 40-70% = worth evaluating; below 40% = reconsider.
+        expr: OVERTURN_RATE_PCT
+        data_type: NUMBER
+
+      - name: avg_resolution_days
+        synonyms: [how long does resolution take, average days to resolve, time to overturn]
+        description: Average number of days from appeal submission to resolution
+        expr: AVG_RESOLUTION_DAYS
+        data_type: NUMBER
+
+  - name: work_items
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_WORK_ITEMS
+    description: >
+      Work items created by the Worker Agent (Cortex Code) after processing a denial.
+      Contains routing decisions — queue assignment, priority, resolution strategy, due date.
+    primary_key:
+      columns: [WORK_ITEM_ID]
+
+    dimensions:
+      - name: work_item_id
+        synonyms: [work item number, WI ID, task ID, routing item]
+        description: Unique work item identifier
+        expr: WORK_ITEM_ID
+        data_type: TEXT
+
+      - name: claim_id
+        synonyms: [claim this work item is for]
+        description: Claim this work item is associated with
+        expr: CLAIM_ID
+        data_type: TEXT
+
+      - name: resolution_strategy
+        synonyms: [recommended action, what to do, agent recommendation, strategy, how should we resolve this]
+        description: >
+          Agent-recommended resolution path:
+          CORRECT_AND_RESUBMIT (billing error), APPEAL (coverage/policy dispute),
+          ROUTE_TO_CLINICAL (medical necessity), WRITE_OFF (not worth pursuing)
+        expr: RESOLUTION_STRATEGY
+        data_type: TEXT
+
+      - name: queue
+        synonyms: [routing queue, which queue, where was it routed, assigned queue]
+        description: Queue the work item was routed to for specialist review
+        expr: QUEUE
+        data_type: TEXT
+
+      - name: priority
+        synonyms: [urgency, how urgent, work item priority, how important]
+        description: Priority level — URGENT, HIGH, MEDIUM, LOW
+        expr: PRIORITY
+        data_type: TEXT
+
+      - name: work_item_status
+        synonyms: [current status, is it resolved, work item state, has it been acted on]
+        description: Current status — OPEN, IN_PROGRESS, RESOLVED, CLOSED, OVERTURNED, WRITE_OFF
+        expr: STATUS
+        data_type: TEXT
+
+      - name: resolution_notes
+        synonyms: [agent notes on strategy, why this strategy, agent rationale, reasoning]
+        description: Notes from the agent explaining the recommended strategy and key findings
+        expr: RESOLUTION_NOTES
+        data_type: TEXT
+
+      - name: due_date
+        synonyms: [work item due, when is it due, work item deadline]
+        description: Due date for this work item (aligns with filing or appeal deadline)
+        expr: DUE_DATE
+        data_type: DATE
+
+  - name: appeal_drafts
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: APPEAL_DRAFTS
+    description: >
+      Appeal letter drafts generated by the Worker Agent. Contains full letter text,
+      policy citations, DOCX stage path, and specialist review status/notes.
+    primary_key:
+      columns: [APPEAL_ID]
+
+    dimensions:
+      - name: appeal_id
+        synonyms: [appeal draft ID, letter ID, appeal document ID]
+        description: Unique appeal draft identifier
+        expr: APPEAL_ID
+        data_type: TEXT
+
+      - name: claim_id
+        synonyms: [claim this appeal is for]
+        description: Claim this appeal draft covers
+        expr: CLAIM_ID
+        data_type: TEXT
+
+      - name: appeal_type
+        synonyms: [type of appeal, appeal category, appeal track]
+        description: Type of appeal — FORMAL_APPEAL, EXPEDITED_APPEAL, PEER_TO_PEER
+        expr: APPEAL_TYPE
+        data_type: TEXT
+
+      - name: appeal_body
+        synonyms: [appeal letter text, appeal letter content, what does the letter say, letter body]
+        description: Full body text of the AI-drafted appeal letter
+        expr: APPEAL_BODY
+        data_type: TEXT
+
+      - name: policy_citations
+        synonyms: [cited policies, referenced sections, policy references, what sections are cited, citations]
+        description: Comma-separated list of policy sections cited in the appeal letter
+        expr: POLICY_CITATIONS
+        data_type: TEXT
+
+      - name: review_status
+        synonyms: [appeal status, has it been reviewed, letter review status, specialist decision]
+        description: Specialist review status — DRAFT, APPROVED, CHANGES_REQUESTED, REJECTED, REVISED
+        expr: REVIEW_STATUS
+        data_type: TEXT
+
+      - name: reviewer_notes
+        synonyms: [specialist notes, change requests, reviewer comments, feedback on letter]
+        description: Notes from the specialist who reviewed the appeal draft
+        expr: REVIEWER_NOTES
+        data_type: TEXT
+
+  - name: investigation_notes
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_NOTES
+    description: >
+      Investigation notes created by the Worker Agent during denial processing.
+      Contains the agent's findings, reasoning, evidence gathered, and evidence summary.
+    primary_key:
+      columns: [NOTE_ID]
+
+    dimensions:
+      - name: note_id
+        synonyms: [note ID, investigation note ID]
+        description: Unique note identifier
+        expr: NOTE_ID
+        data_type: TEXT
+
+      - name: claim_id
+        synonyms: [claim this note is for]
+        description: Claim this note is associated with
+        expr: CLAIM_ID
+        data_type: TEXT
+
+      - name: note_content
+        synonyms: [investigation findings, what did the agent find, agent notes, investigation results, full note]
+        description: Full text of the investigation note from the Worker Agent
+        expr: NOTE_TEXT
+        data_type: TEXT
+
+      - name: evidence_summary
+        synonyms: [evidence found, key evidence, summary of findings, what evidence supports this]
+        description: Condensed summary of the evidence the agent gathered
+        expr: EVIDENCE_SUMMARY
+        data_type: TEXT
+
+      - name: note_type
+        synonyms: [type of note, note category, what kind of note]
+        description: Type of note — AGENT_INVESTIGATION, HUMAN_REVIEW, ESCALATION
+        expr: NOTE_TYPE
+        data_type: TEXT
+
+relationships:
+  - name: denial_to_claim
+    left_table: denials
+    right_table: claims
+    relationship_type: many_to_one
+    join_type: inner
+    relationship_columns:
+      - left_column: CLAIM_ID
+        right_column: CLAIM_ID
+
+  - name: claim_to_member
+    left_table: claims
+    right_table: members
+    relationship_type: many_to_one
+    join_type: inner
+    relationship_columns:
+      - left_column: MEMBER_ID
+        right_column: MEMBER_ID
+
+  - name: denial_to_work_item
+    left_table: denials
+    right_table: work_items
+    relationship_type: one_to_many
+    join_type: left
+    relationship_columns:
+      - left_column: CLAIM_ID
+        right_column: CLAIM_ID
+
+  - name: denial_to_appeal_draft
+    left_table: denials
+    right_table: appeal_drafts
+    relationship_type: one_to_many
+    join_type: left
+    relationship_columns:
+      - left_column: CLAIM_ID
+        right_column: CLAIM_ID
+
+  - name: denial_to_notes
+    left_table: denials
+    right_table: investigation_notes
+    relationship_type: one_to_many
+    join_type: left
+    relationship_columns:
+      - left_column: CLAIM_ID
+        right_column: CLAIM_ID
+
+  - name: claim_to_prior_auth
+    left_table: claims
+    right_table: prior_auth
+    relationship_type: one_to_many
+    join_type: left
+    relationship_columns:
+      - left_column: MEMBER_ID
+        right_column: MEMBER_ID
+
+  - name: claim_to_contract
+    left_table: claims
+    right_table: contracts
+    relationship_type: many_to_one
+    join_type: left
+    relationship_columns:
+      - left_column: PAYER_ID
+        right_column: PAYER_ID
+
+  - name: denial_to_history
+    left_table: denials
+    right_table: denial_history
+    relationship_type: many_to_one
+    join_type: left
+    relationship_columns:
+      - left_column: DENIAL_CODE
+        right_column: DENIAL_CODE
+
+verified_queries:
+  - question: What is the historical overturn rate for each payer and denial code combination?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT PAYER_ID, DENIAL_CODE, TOTAL_DENIALS, TOTAL_APPEALED,
+             TOTAL_OVERTURNED, OVERTURN_RATE_PCT AS historical_overturn_rate,
+             AVG_RESOLUTION_DAYS, NOTES
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIAL_HISTORY
+      ORDER BY OVERTURN_RATE_PCT DESC
+
+  - question: How many filing and appeal days remain for each open denial?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT d.DENIAL_ID, d.CLAIM_ID, d.DENIAL_CODE, d.DENIAL_AMOUNT,
+             DATEDIFF('day', CURRENT_DATE(), d.FILING_DEADLINE)  AS filing_days_remaining,
+             DATEDIFF('day', CURRENT_DATE(), d.APPEAL_DEADLINE)  AS appeal_days_remaining
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      WHERE d.PROCESSED_BY_AGENT = TRUE
+      ORDER BY filing_days_remaining ASC
+
+  - question: What prior authorizations exist for each member, including group NPI lookups?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT pa.AUTH_ID, pa.AUTH_REFERENCE, pa.AUTH_STATUS,
+             pa.CPT_CODE, pa.EFFECTIVE_DATE, pa.EXPIRATION_DATE,
+             pa.PROVIDER_NPI, pa.GROUP_NPI, pa.NOTES,
+             c.PROVIDER_NAME, c.CLAIM_ID
+      FROM __APP_DATABASE__.__APP_SCHEMA__.PRIOR_AUTH pa
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CLAIMS c
+        ON (pa.PROVIDER_NPI = c.PROVIDER_NPI OR pa.GROUP_NPI = c.GROUP_NPI)
+       AND pa.MEMBER_ID = c.MEMBER_ID
+
+  - question: What are the appeal window and timely filing requirements for each payer?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT PAYER_NAME, PAYER_ID, TIMELY_FILING_DAYS, APPEAL_WINDOW_DAYS,
+             AUTH_LOOKBACK_DAYS, NOTES
+      FROM __APP_DATABASE__.__APP_SCHEMA__.CONTRACTS
+      ORDER BY PAYER_NAME
+
+  - question: What did the Worker Agent find when it investigated each denial?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT n.CLAIM_ID, n.NOTE_TYPE, n.NOTE_TEXT, n.EVIDENCE_SUMMARY, n.CREATED_AT
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIAL_NOTES n
+      ORDER BY n.CREATED_AT DESC
+
+  - question: What is the full denial picture for each processed claim?
+    verified_at: "2026-04-29"
+    sql: >
+      SELECT d.CLAIM_ID, d.DENIAL_CODE, d.DENIAL_AMOUNT,
+             d.FILING_DEADLINE, d.APPEAL_DEADLINE,
+             DATEDIFF('day', CURRENT_DATE(), d.FILING_DEADLINE) AS filing_days_remaining,
+             DATEDIFF('day', CURRENT_DATE(), d.APPEAL_DEADLINE) AS appeal_days_remaining,
+             m.FIRST_NAME || ' ' || m.LAST_NAME AS patient_name,
+             c.PROVIDER_NAME, c.PAYER_ID,
+             wi.RESOLUTION_STRATEGY, wi.PRIORITY, wi.QUEUE, wi.STATUS AS work_item_status,
+             dh.OVERTURN_RATE_PCT AS historical_overturn_rate
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CLAIMS c ON d.CLAIM_ID = c.CLAIM_ID
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.MEMBERS m ON c.MEMBER_ID = m.MEMBER_ID
+      LEFT JOIN __APP_DATABASE__.__APP_SCHEMA__.DENIAL_WORK_ITEMS wi ON d.CLAIM_ID = wi.CLAIM_ID
+      LEFT JOIN __APP_DATABASE__.__APP_SCHEMA__.DENIAL_HISTORY dh
+             ON d.DENIAL_CODE = dh.DENIAL_CODE AND c.PAYER_ID = dh.PAYER_ID
+      WHERE d.PROCESSED_BY_AGENT = TRUE
+      ORDER BY filing_days_remaining ASC

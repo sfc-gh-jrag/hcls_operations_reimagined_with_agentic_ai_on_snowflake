@@ -1,0 +1,17 @@
+deploy.env
+.env
+*.env.local
+
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+.DS_Store
+*.swp
+*.swo
+*~
+
+*.log
