@@ -1,36 +1,66 @@
 # HCLS Operations Reimagined with Agentic AI on Snowflake
 
-## The Problem: $262B in Denied Claims, Powered by Manual Judgment
+## The Operational Burden in Healthcare
 
-Healthcare spends over **$1 trillion per year** on operational administration — twenty cents of every dollar. Denied claims alone cost the industry **$262 billion annually**, yet the workflows to resolve them remain stubbornly manual: 45–90 minutes per denial, six disconnected systems, and deep subject matter expertise that takes months to develop.
+Healthcare dedicates over **$1 trillion annually** to operational administration — twenty cents of every dollar spent. Despite decades of investment in EHRs, revenue cycle platforms, and analytics dashboards, that ratio hasn't moved. The reason is structural: the hardest operational workflows in healthcare aren't constrained by data access. They're constrained by **judgment**.
 
-The bottleneck isn't data access. It's **judgment** — interpreting payer contracts, cross-referencing prior authorizations, weighing competing evidence, and choosing the right resolution strategy under ambiguity and deadline pressure.
+Denied claims, prior authorizations, clinical documentation reviews, compliance audits, coding validation — each of these workflows requires specialists to interpret unstructured contracts, cross-reference structured records, weigh conflicting evidence, and make decisions under time pressure. These are reasoning problems, not retrieval problems. Rule engines automate the predictable. The judgment-heavy work — the work that drives the most cost and the most risk — remains stubbornly manual.
 
-## The Solution: Two Complementary AI Agent Patterns
+## A Repeatable Pattern for Judgment-Heavy Workflows
 
-This solution demonstrates how **two Snowflake-native agent patterns** work together to transform denied claims handling from a manual, error-prone process into an AI-augmented review workflow:
+This project introduces a **dual-agent architecture** built entirely on Snowflake that redefines how healthcare organizations can approach operational workflows that depend on expert reasoning. The architecture combines two complementary AI agent patterns — each purpose-built for a different aspect of the problem:
 
-### Interactive Agent (Cortex Agent API)
-The **human-in-the-driver's-seat** model. Revenue cycle specialists, CFOs, and clinicians ask questions in plain language — denial trends, revenue impact, payer benchmarking, root-cause analysis — and the agent responds with data-grounded answers by querying a **Semantic View** over structured claims data and a **Cortex Search** service over payer contract documents. The human guides; the agent executes.
+**The Interactive Agent** works alongside the specialist in real time. Powered by Snowflake's **Cortex Agent API**, it connects to structured data through **Semantic Views** and to unstructured documents through **Cortex Search**, enabling natural-language exploration across both. The specialist asks; the agent retrieves, analyzes, and presents — keeping the human in control while eliminating the time spent navigating disconnected systems.
 
-### Worker Agent (Cortex Code Agent SDK)
-The **autonomous investigator**. When a new denial arrives, the Worker Agent independently investigates — pulling claims history, eligibility, prior authorizations (including Group NPI fallback), and payer contract language. It classifies the denial, recommends a resolution strategy, and drafts an appeal letter with citations. The entire investigation completes in **under 3 minutes** versus 45–90 minutes manually.
+**The Worker Agent** operates autonomously before the specialist even opens a case. Built on the **Cortex Code Agent SDK**, it independently investigates, reasons through evidence, classifies, recommends actions, and generates artifacts. It then surfaces a completed work package for human review. The specialist's role shifts from processor to reviewer.
 
-### The Result: From Processor to Reviewer
+This pattern — an autonomous agent that prepares the work, paired with an interactive agent that supports deeper analysis — is applicable wherever operational workflows require expert judgment at scale.
 
-| | Before | After |
-|---|---|---|
-| **Role** | Processor | Reviewer |
-| **Time per denial** | 45–90 minutes | 30 seconds |
-| **Systems touched** | 6+ | 1 |
-| **Time to productivity** | 6 months | Day one |
+## Denied Claims Handling: The Reference Implementation
+
+This repository implements the dual-agent pattern against one of the highest-impact workflows in healthcare revenue cycle: **denied claims resolution**. Denials cost U.S. providers an estimated **$262 billion annually**, with individual cases requiring 45–90 minutes of manual investigation across multiple disconnected systems.
+
+### How It Works
+
+The **Worker Agent** receives a denied claim and autonomously conducts a multi-step investigation: pulling claims history, checking eligibility and benefits, searching for prior authorizations (including institutional knowledge like Group NPI fallback), reading payer contract language through Cortex Search, classifying the denial, recommending a resolution strategy, and drafting an appeal letter with citations. Total time: **under 3 minutes**.
+
+The **Interactive Agent** gives revenue cycle specialists, directors, and finance leaders a conversational interface to explore denial trends, model revenue impact, benchmark payer performance, and investigate root causes — all grounded in the organization's governed data.
+
+### Measured Impact
+
+| Metric | Before | With Agents |
+|--------|--------|-------------|
+| **Specialist role** | Case processor | Work package reviewer |
+| **Time per denial** | 45–90 minutes | 30 seconds to review |
+| **Systems navigated** | 6+ | 1 unified interface |
+| **Onboarding time** | 6 months to full productivity | Day-one contribution |
 | **Recovery rate** | ~35% | ~72% |
+| **Projected annual recovery** | — | **+$4.4M** in recovered revenue |
+| **Specialist time saved** | — | **180 hours/month** redirected to escalations |
 
-**Projected impact**: $4.4M additional annual revenue recovered. 180 hours/month of specialist time redirected from processing to high-value review and escalation.
+### Beyond Denied Claims
 
-### Why Snowflake
+The architecture is intentionally workflow-agnostic. The same dual-agent pattern — autonomous preparation plus interactive analysis, running on Snowflake's governed AI platform — can be adapted to:
 
-Both agents run entirely within Snowflake — claims data, contract documents, AI models, and agent logic in one governed environment. No data leaves the platform. No external AI calls. Enterprise governance, role-based access, full auditability, and zero data movement from day one. The dual-agent pattern is repeatable across every judgment-heavy workflow in healthcare: prior authorization, clinical documentation, compliance monitoring, and coding review.
+- **Prior Authorization** — automated evidence assembly and determination support
+- **Clinical Documentation Review** — AI-assisted completeness and compliance checks
+- **Coding Validation** — autonomous code review against clinical notes and payer rules
+- **Compliance Monitoring** — continuous audit with exception surfacing for human review
+- **Discharge Planning** — proactive identification of barriers and resource coordination
+
+## Why Snowflake
+
+The platform choice is not incidental. The dual-agent pattern depends on a set of capabilities that must work together within a single governance boundary:
+
+| Capability | Role in the Architecture |
+|-----------|--------------------------|
+| **Cortex Agent API** | Powers the Interactive Agent — orchestrates Semantic Views and Cortex Search in one conversational interface |
+| **Cortex Code Agent SDK** | Powers the Worker Agent — autonomous multi-step reasoning with code execution, data queries, and artifact generation |
+| **Cortex Search** | Semantic retrieval over unstructured documents (payer contracts, clinical policies) during agent investigation |
+| **Semantic Views** | Business-level semantic layer over operational data, enabling natural language queries without pre-built dashboards |
+| **Snowpark Container Services** | Hosts both agent services with enterprise-grade security, RBAC, and public ingress — no external infrastructure needed |
+
+Data, documents, AI models, and agent logic all reside in one environment. No data leaves the platform. No external LLM calls. Full auditability on every agent decision. Enterprise governance and role-based access from day one.
 
 ---
 
@@ -68,16 +98,6 @@ Both agents run entirely within Snowflake — claims data, contract documents, A
 |---------|----------|---------|------|
 | **Cortex Code Service** | `CORTEX_CODE_DB` | Runs Cortex Code Agent SDK — headless agent execution for autonomous claim processing | 8080 |
 | **Denied Claims App** | `AGENTIC_DENIED_CLAIMS_HANDLING` | React UI + FastAPI backend — review queue, interactive agent chat, appeal documents | 3000 |
-
-### Snowflake AI Capabilities Used
-
-| Capability | Role in Solution |
-|-----------|-----------------|
-| **Cortex Agent API** | Powers the Interactive Agent — connects Semantic Views and Cortex Search in a single conversational interface |
-| **Cortex Code Agent SDK** | Powers the Worker Agent — autonomous multi-step investigation with code execution, data queries, and chained reasoning |
-| **Cortex Search Service** | Semantic search over 25 payer contract documents for policy interpretation during investigation |
-| **Semantic Views** | Business-level semantic layer over claims data enabling natural language SQL queries |
-| **Snowpark Container Services** | Hosts both services with enterprise governance, auto-scaling, and public ingress |
 
 ## Prerequisites
 
