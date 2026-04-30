@@ -37,8 +37,6 @@ An end-to-end AI-powered denied healthcare claims resolution system built on Sno
 | **Cortex Code Service** | `CORTEX_CODE_DB` | Runs Cortex Code Agent SDK — headless agent execution for autonomous claim processing | 8080 |
 | **Denied Claims App** | `AGENTIC_DENIED_CLAIMS_HANDLING` | React UI + FastAPI backend — review queue, interactive agent chat, appeal documents | 3000 |
 
-The two services communicate over HTTPS (public endpoints + PAT authentication) because SPCS internal DNS does not work across databases.
-
 ## Prerequisites
 
 - **Snowflake Account** with ACCOUNTADMIN role
