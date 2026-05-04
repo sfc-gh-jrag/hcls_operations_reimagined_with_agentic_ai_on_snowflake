@@ -10,7 +10,7 @@ import { WorkingTogetherView } from "./components/WorkingTogetherView";
 import { TheImpactView } from "./components/TheImpactView";
 import {
   AlertTriangle, Target, HelpCircle, Scale, MessageSquare, Cpu,
-  Link2, TrendingUp, RotateCcw, X, CheckSquare, Square, RotateCw, Trash2
+  Link2, TrendingUp, RotateCcw, X, CheckSquare, Square, RotateCw, Trash2, LogOut
 } from "lucide-react";
 
 interface ResetClaim {
@@ -260,6 +260,13 @@ export default function App() {
             <span className="px-2.5 py-1 bg-gray-100 rounded-md text-[11px] text-gray-500 font-medium">
               DENIED CLAIMS DEMO
             </span>
+            <button
+              onClick={() => { window.location.href = "/sfc-endpoint/logout"; }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-red-100 hover:text-red-600 rounded-md text-[11px] text-gray-500 font-medium transition-colors"
+            >
+              <LogOut size={11} />
+              Logout
+            </button>
           </div>
         </div>
       </header>

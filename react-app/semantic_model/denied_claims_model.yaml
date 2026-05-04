@@ -728,6 +728,61 @@ verified_queries:
       WHERE d.PROCESSED_BY_AGENT = TRUE
       ORDER BY filing_days_remaining ASC
 
+  - question: Which denial codes have the highest overturn rates across all payers?
+    verified_at: "2026-05-04"
+    sql: >
+      SELECT dh.DENIAL_CODE, dh.DENIAL_GROUP, dh.PAYER_ID, dh.OVERTURN_RATE_PCT,
+             dh.TOTAL_DENIALS, dh.OVERTURNED_COUNT
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIAL_HISTORY dh
+      WHERE dh.TOTAL_DENIALS >= 1
+      ORDER BY dh.OVERTURN_RATE_PCT DESC
+      LIMIT 10
+
+  - question: How much revenue is at risk from claims expiring in the next 30 days?
+    verified_at: "2026-05-04"
+    sql: >
+      SELECT d.CLAIM_ID, d.DENIAL_CODE, d.DENIAL_AMOUNT, d.DENIAL_DATE,
+             ct.APPEAL_WINDOW_DAYS,
+             DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE) AS APPEAL_DEADLINE,
+             DATEDIFF(DAY, CURRENT_DATE, DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE)) AS DAYS_REMAINING
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CLAIMS c ON d.CLAIM_ID = c.CLAIM_ID
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CONTRACTS ct ON c.PAYER_ID = ct.PAYER_ID
+      WHERE DATEDIFF(DAY, CURRENT_DATE, DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE)) BETWEEN 0 AND 30
+      ORDER BY d.DENIAL_AMOUNT DESC
+
+  - question: What are the top 5 root causes of denials by dollar amount?
+    verified_at: "2026-05-04"
+    sql: >
+      SELECT d.DENIAL_CODE, d.DENIAL_REASON, COUNT(*) AS denial_count,
+             SUM(d.DENIAL_AMOUNT) AS total_denied_amount
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      GROUP BY d.DENIAL_CODE, d.DENIAL_REASON
+      ORDER BY total_denied_amount DESC
+      LIMIT 5
+
+  - question: Compare denial rates across payers for prior authorization issues.
+    verified_at: "2026-05-04"
+    sql: >
+      SELECT c.PAYER_ID, d.DENIAL_CODE, COUNT(*) AS denial_count,
+             SUM(d.DENIAL_AMOUNT) AS total_denied_amount
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CLAIMS c ON d.CLAIM_ID = c.CLAIM_ID
+      WHERE d.DENIAL_REASON ILIKE '%prior auth%' OR d.DENIAL_REASON ILIKE '%authorization%'
+      GROUP BY c.PAYER_ID, d.DENIAL_CODE
+      ORDER BY total_denied_amount DESC
+
+  - question: Which providers have the highest denial volume this quarter?
+    verified_at: "2026-05-04"
+    sql: >
+      SELECT c.PROVIDER_NAME, COUNT(*) AS denial_count,
+             SUM(d.DENIAL_AMOUNT) AS total_denied_amount
+      FROM __APP_DATABASE__.__APP_SCHEMA__.DENIALS d
+      JOIN __APP_DATABASE__.__APP_SCHEMA__.CLAIMS c ON d.CLAIM_ID = c.CLAIM_ID
+      WHERE d.DENIAL_DATE >= DATE_TRUNC('QUARTER', CURRENT_DATE)
+      GROUP BY c.PROVIDER_NAME
+      ORDER BY denial_count DESC
+
   - question: What prior authorizations exist for each member, including group NPI lookups?
     verified_at: "2026-04-29"
     sql: >
