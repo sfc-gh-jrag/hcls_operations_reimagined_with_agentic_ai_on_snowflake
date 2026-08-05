@@ -3,7 +3,7 @@
 -- Run this FIRST. Replace __PLACEHOLDERS__ by running scripts/configure.sh
 -- =============================================================================
 
-USE ROLE SYSADMIN;
+USE ROLE __DEPLOY_ROLE__;
 
 -- 1. App database and schemas
 CREATE DATABASE IF NOT EXISTS __APP_DATABASE__;

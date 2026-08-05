@@ -4,7 +4,7 @@
 -- WARNING: This is destructive and cannot be undone.
 -- =============================================================================
 
-USE ROLE SYSADMIN;
+USE ROLE __DEPLOY_ROLE__;
 
 -- 1. Stop and drop services
 ALTER SERVICE IF EXISTS __APP_DATABASE__.SPCS.DENIED_CLAIMS_APP SUSPEND;

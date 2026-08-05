@@ -8,6 +8,11 @@ _DB = os.environ.get("SNOWFLAKE_DATABASE", "AGENTIC_DENIED_CLAIMS_HANDLING")
 _SCHEMA = os.environ.get("SNOWFLAKE_SCHEMA", "DENIED_CLAIMS")
 _FQN = f"{_DB}.{_SCHEMA}"
 
+# NOTE: SYSTEM_PROMPT and build_denial_prompt() are f-strings. Any literal `{` or
+# `}` in their bodies (e.g. JSON payloads passed to SEARCH_PREVIEW) MUST be
+# doubled as `{{` / `}}`, otherwise Python raises a SyntaxError at import time and
+# the container exits before uvicorn binds. Run `python -m compileall` or
+# `scripts/validate_repo.sh` after editing these prompts.
 SYSTEM_PROMPT = f"""You are a denied claims operations assistant working for a Revenue Cycle Management company.
 
 YOUR ROLE:
@@ -33,7 +38,7 @@ All data lives in Snowflake under {_FQN} schema:
 
 To search payer policy documents, use SQL:
 SELECT value['SECTION_NUMBER']::VARCHAR, value['SECTION_TITLE']::VARCHAR, value['CONTENT']::VARCHAR
-FROM TABLE(FLATTEN(PARSE_JSON(SNOWFLAKE.CORTEX.SEARCH_PREVIEW('{_FQN}.PAYER_DOC_SEARCH', '{"query": "<your search terms>", "columns": ["SECTION_NUMBER","SECTION_TITLE","CONTENT","PAYER_NAME"], "filter": {"@eq": {"PAYER_ID": "<payer_id>"}}, "limit": 5}'))['results']));
+FROM TABLE(FLATTEN(PARSE_JSON(SNOWFLAKE.CORTEX.SEARCH_PREVIEW('{_FQN}.PAYER_DOC_SEARCH', '{{"query": "<your search terms>", "columns": ["SECTION_NUMBER","SECTION_TITLE","CONTENT","PAYER_NAME"], "filter": {{"@eq": {{"PAYER_ID": "<payer_id>"}}}}, "limit": 5}}'))['results']));
 
 CONFIDENCE SCORING:
 - 0.90-1.00: Clear-cut resolution, high evidence support

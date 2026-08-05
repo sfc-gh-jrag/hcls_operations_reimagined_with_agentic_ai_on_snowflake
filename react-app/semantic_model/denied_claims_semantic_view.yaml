@@ -1,0 +1,628 @@
+# Semantic View YAML for Cortex Analyst / Cortex Agents.
+#
+# IMPORTANT: This is the *Semantic View* specification, which is NOT the same as
+# the legacy Cortex Analyst stage-API spec used by denied_claims_model.yaml.
+# Differences that matter:
+#   * facts/metrics instead of measures + default_aggregation
+#   * no join_type or relationship_type (inferred from the data)
+#   * verified_queries[].verified_at is epoch seconds, not a date string
+#
+# Deploy with sql/04_cortex_services.sql, which calls
+# SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML. Validate a change before committing:
+#   CALL SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML('db.schema', <this file>, TRUE);
+#   (pass the file contents as a dollar-quoted literal; see sql/04_cortex_services.sql)
+#
+# __APP_DATABASE__ / __APP_SCHEMA__ are substituted by scripts/configure.sh.
+
+name: DENIED_CLAIMS_AGENT_SV
+description: "Healthcare denied claims management analytics model covering denials, claims, members, prior authorizations, payer contracts, denial history with overturn rates, work items for denial resolution, appeal drafts, and investigation notes. Used by a Cortex Agent to answer questions about denial patterns, overturn likelihood, filing deadlines, appeal strategies, and claim status."
+tables:
+  - name: APPEAL_DRAFTS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: APPEAL_DRAFTS
+    primary_key:
+      columns:
+        - APPEAL_ID
+    dimensions:
+      - name: APPEAL_BODY
+        expr: APPEAL_BODY
+        data_type: VARCHAR(10000)
+      - name: APPEAL_ID
+        expr: APPEAL_ID
+        data_type: VARCHAR(20)
+      - name: APPEAL_TYPE
+        expr: APPEAL_TYPE
+        data_type: VARCHAR(30)
+      - name: CLAIM_ID
+        expr: CLAIM_ID
+        data_type: VARCHAR(20)
+      - name: CREATED_BY
+        expr: CREATED_BY
+        data_type: VARCHAR(50)
+      - name: DENIAL_ID
+        expr: DENIAL_ID
+        data_type: VARCHAR(20)
+      - name: DOCX_STAGE_PATH
+        expr: DOCX_STAGE_PATH
+        data_type: VARCHAR(16777216)
+      - name: POLICY_CITATIONS
+        expr: POLICY_CITATIONS
+        data_type: VARCHAR(2000)
+      - name: REVIEWER_NOTES
+        expr: REVIEWER_NOTES
+        data_type: VARCHAR(16777216)
+      - name: REVIEW_STATUS
+        expr: REVIEW_STATUS
+        data_type: VARCHAR(16777216)
+      - name: STATUS
+        expr: STATUS
+        data_type: VARCHAR(20)
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: REVIEWED_AT
+        expr: REVIEWED_AT
+        data_type: TIMESTAMP_NTZ(9)
+  - name: CLAIMS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: CLAIMS
+    primary_key:
+      columns:
+        - CLAIM_ID
+    dimensions:
+      - name: CLAIM_ID
+        expr: CLAIM_ID
+        data_type: VARCHAR(20)
+      - name: CLAIM_TYPE
+        expr: CLAIM_TYPE
+        data_type: VARCHAR(20)
+      - name: COB_INDICATOR
+        expr: COB_INDICATOR
+        data_type: BOOLEAN
+      - name: DIAGNOSIS_DESCRIPTION
+        expr: DIAGNOSIS_DESCRIPTION
+        data_type: VARCHAR(200)
+      - name: FACILITY_NAME
+        expr: FACILITY_NAME
+        data_type: VARCHAR(100)
+      - name: GROUP_NPI
+        expr: GROUP_NPI
+        data_type: VARCHAR(15)
+      - name: MEMBER_ID
+        expr: MEMBER_ID
+        data_type: VARCHAR(20)
+      - name: PAYER_ID
+        expr: PAYER_ID
+        data_type: VARCHAR(20)
+      - name: PAYER_REF_NUMBER
+        expr: PAYER_REF_NUMBER
+        data_type: VARCHAR(30)
+      - name: PLACE_OF_SERVICE
+        expr: PLACE_OF_SERVICE
+        data_type: VARCHAR(5)
+      - name: PLAN_ID
+        expr: PLAN_ID
+        data_type: VARCHAR(20)
+      - name: PRIMARY_DIAGNOSIS
+        expr: PRIMARY_DIAGNOSIS
+        data_type: VARCHAR(10)
+      - name: PRIOR_AUTH_ID
+        expr: PRIOR_AUTH_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_ID
+        expr: PROVIDER_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_NAME
+        expr: PROVIDER_NAME
+        data_type: VARCHAR(100)
+      - name: PROVIDER_NPI
+        expr: PROVIDER_NPI
+        data_type: VARCHAR(15)
+      - name: STATUS
+        expr: STATUS
+        data_type: VARCHAR(20)
+    facts:
+      - name: PATIENT_RESPONSIBILITY
+        expr: PATIENT_RESPONSIBILITY
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: TOTAL_ALLOWED
+        expr: TOTAL_ALLOWED
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: TOTAL_BILLED
+        expr: TOTAL_BILLED
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+      - name: TOTAL_PAID
+        expr: TOTAL_PAID
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: DATE_OF_SERVICE
+        expr: DATE_OF_SERVICE
+        data_type: DATE
+      - name: DATE_SUBMITTED
+        expr: DATE_SUBMITTED
+        data_type: DATE
+  - name: CONTRACTS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: CONTRACTS
+    primary_key:
+      columns:
+        - CONTRACT_ID
+    dimensions:
+      - name: APPEAL_WINDOW_DAYS
+        expr: APPEAL_WINDOW_DAYS
+        data_type: "NUMBER(38,0)"
+      - name: AUTH_REQUIREMENTS
+        expr: AUTH_REQUIREMENTS
+        data_type: VARCHAR(500)
+      - name: CONTRACT_ID
+        expr: CONTRACT_ID
+        data_type: VARCHAR(20)
+      - name: COVERAGE_NOTES
+        expr: COVERAGE_NOTES
+        data_type: VARCHAR(1000)
+      - name: FILING_LIMIT_DAYS
+        expr: FILING_LIMIT_DAYS
+        data_type: "NUMBER(38,0)"
+      - name: NPI_POLICY
+        expr: NPI_POLICY
+        data_type: VARCHAR(500)
+      - name: PAYER_ID
+        expr: PAYER_ID
+        data_type: VARCHAR(20)
+      - name: PLAN_ID
+        expr: PLAN_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_GROUP
+        expr: PROVIDER_GROUP
+        data_type: VARCHAR(50)
+      - name: RESUBMISSION_POLICY
+        expr: RESUBMISSION_POLICY
+        data_type: VARCHAR(500)
+      - name: SPECIAL_TERMS
+        expr: SPECIAL_TERMS
+        data_type: VARCHAR(1000)
+      - name: TIMELY_FILING_DAYS
+        expr: TIMELY_FILING_DAYS
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: EFFECTIVE_DATE
+        expr: EFFECTIVE_DATE
+        data_type: DATE
+      - name: TERM_DATE
+        expr: TERM_DATE
+        data_type: DATE
+  - name: DENIALS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIALS
+    primary_key:
+      columns:
+        - DENIAL_ID
+    dimensions:
+      - name: AGENT_RESULT
+        expr: AGENT_RESULT
+        data_type: VARIANT
+      - name: CLAIM_ID
+        expr: CLAIM_ID
+        data_type: VARCHAR(20)
+      - name: DENIAL_CODE
+        expr: DENIAL_CODE
+        data_type: VARCHAR(10)
+      - name: DENIAL_GROUP
+        expr: DENIAL_GROUP
+        data_type: VARCHAR(5)
+      - name: DENIAL_ID
+        expr: DENIAL_ID
+        data_type: VARCHAR(20)
+      - name: DENIAL_REASON
+        expr: DENIAL_REASON
+        data_type: VARCHAR(500)
+      - name: PAYER_REMARK
+        expr: PAYER_REMARK
+        data_type: VARCHAR(500)
+      - name: PROCESSED_BY_AGENT
+        expr: PROCESSED_BY_AGENT
+        data_type: BOOLEAN
+    facts:
+      - name: DENIAL_AMOUNT
+        expr: DENIAL_AMOUNT
+        data_type: "NUMBER(12,2)"
+        access_modifier: public_access
+    time_dimensions:
+      - name: AGENT_PROCESSED_AT
+        expr: AGENT_PROCESSED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: DENIAL_DATE
+        expr: DENIAL_DATE
+        data_type: DATE
+  - name: DENIAL_HISTORY
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_HISTORY
+    dimensions:
+      - name: APPEAL_COUNT
+        expr: APPEAL_COUNT
+        data_type: "NUMBER(13,0)"
+      - name: CPT_CODE
+        expr: CPT_CODE
+        data_type: VARCHAR(10)
+      - name: DENIAL_CODE
+        expr: DENIAL_CODE
+        data_type: VARCHAR(10)
+      - name: DENIAL_GROUP
+        expr: DENIAL_GROUP
+        data_type: VARCHAR(5)
+      - name: OVERTURNED_COUNT
+        expr: OVERTURNED_COUNT
+        data_type: "NUMBER(13,0)"
+      - name: PAYER_ID
+        expr: PAYER_ID
+        data_type: VARCHAR(20)
+      - name: PLAN_ID
+        expr: PLAN_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_ID
+        expr: PROVIDER_ID
+        data_type: VARCHAR(20)
+      - name: RESUBMIT_COUNT
+        expr: RESUBMIT_COUNT
+        data_type: "NUMBER(13,0)"
+      - name: TOTAL_DENIALS
+        expr: TOTAL_DENIALS
+        data_type: "NUMBER(18,0)"
+      - name: WRITE_OFF_COUNT
+        expr: WRITE_OFF_COUNT
+        data_type: "NUMBER(13,0)"
+    facts:
+      - name: AVG_DENIAL_AMOUNT
+        expr: AVG_DENIAL_AMOUNT
+        data_type: "NUMBER(30,8)"
+        access_modifier: public_access
+      - name: OVERTURN_RATE_PCT
+        expr: OVERTURN_RATE_PCT
+        data_type: "NUMBER(23,1)"
+        access_modifier: public_access
+    time_dimensions:
+      - name: FIRST_DENIAL_DATE
+        expr: FIRST_DENIAL_DATE
+        data_type: DATE
+      - name: LAST_DENIAL_DATE
+        expr: LAST_DENIAL_DATE
+        data_type: DATE
+  - name: DENIAL_NOTES
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_NOTES
+    primary_key:
+      columns:
+        - NOTE_ID
+    dimensions:
+      - name: CLAIM_ID
+        expr: CLAIM_ID
+        data_type: VARCHAR(20)
+      - name: CREATED_BY
+        expr: CREATED_BY
+        data_type: VARCHAR(50)
+      - name: DENIAL_ID
+        expr: DENIAL_ID
+        data_type: VARCHAR(20)
+      - name: EVIDENCE_SUMMARY
+        expr: EVIDENCE_SUMMARY
+        data_type: VARCHAR(3000)
+      - name: NOTE_ID
+        expr: NOTE_ID
+        data_type: VARCHAR(20)
+      - name: NOTE_TEXT
+        expr: NOTE_TEXT
+        data_type: VARCHAR(5000)
+      - name: NOTE_TYPE
+        expr: NOTE_TYPE
+        data_type: VARCHAR(20)
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+  - name: DENIAL_WORK_ITEMS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: DENIAL_WORK_ITEMS
+    primary_key:
+      columns:
+        - WORK_ITEM_ID
+    dimensions:
+      - name: ASSIGNED_TO
+        expr: ASSIGNED_TO
+        data_type: VARCHAR(50)
+      - name: CLAIM_ID
+        expr: CLAIM_ID
+        data_type: VARCHAR(20)
+      - name: CREATED_BY
+        expr: CREATED_BY
+        data_type: VARCHAR(50)
+      - name: DENIAL_ID
+        expr: DENIAL_ID
+        data_type: VARCHAR(20)
+      - name: PRIORITY
+        expr: PRIORITY
+        data_type: VARCHAR(10)
+      - name: QUEUE
+        expr: QUEUE
+        data_type: VARCHAR(50)
+      - name: RESOLUTION_NOTES
+        expr: RESOLUTION_NOTES
+        data_type: VARCHAR(1000)
+      - name: RESOLUTION_STRATEGY
+        expr: RESOLUTION_STRATEGY
+        data_type: VARCHAR(50)
+      - name: STATUS
+        expr: STATUS
+        data_type: VARCHAR(20)
+      - name: WORK_ITEM_ID
+        expr: WORK_ITEM_ID
+        data_type: VARCHAR(20)
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: DUE_DATE
+        expr: DUE_DATE
+        data_type: DATE
+      - name: UPDATED_AT
+        expr: UPDATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+  - name: MEMBERS
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: MEMBERS
+    primary_key:
+      columns:
+        - MEMBER_ID
+    dimensions:
+      - name: ADDRESS
+        expr: ADDRESS
+        data_type: VARCHAR(200)
+      - name: CITY
+        expr: CITY
+        data_type: VARCHAR(50)
+      - name: FIRST_NAME
+        expr: FIRST_NAME
+        data_type: VARCHAR(50)
+      - name: GENDER
+        expr: GENDER
+        data_type: VARCHAR(1)
+      - name: GROUP_NUMBER
+        expr: GROUP_NUMBER
+        data_type: VARCHAR(20)
+      - name: LAST_NAME
+        expr: LAST_NAME
+        data_type: VARCHAR(50)
+      - name: MEMBER_ID
+        expr: MEMBER_ID
+        data_type: VARCHAR(20)
+      - name: PAYER_ID
+        expr: PAYER_ID
+        data_type: VARCHAR(20)
+      - name: PHONE
+        expr: PHONE
+        data_type: VARCHAR(15)
+      - name: PLAN_ID
+        expr: PLAN_ID
+        data_type: VARCHAR(20)
+      - name: SSN_LAST4
+        expr: SSN_LAST4
+        data_type: VARCHAR(4)
+      - name: STATE
+        expr: STATE
+        data_type: VARCHAR(2)
+      - name: ZIP
+        expr: ZIP
+        data_type: VARCHAR(10)
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: DOB
+        expr: DOB
+        data_type: DATE
+      - name: EFFECTIVE_DATE
+        expr: EFFECTIVE_DATE
+        data_type: DATE
+      - name: TERM_DATE
+        expr: TERM_DATE
+        data_type: DATE
+  - name: PRIOR_AUTH
+    base_table:
+      database: __APP_DATABASE__
+      schema: __APP_SCHEMA__
+      table: PRIOR_AUTH
+    primary_key:
+      columns:
+        - AUTH_ID
+    dimensions:
+      - name: AUTH_ID
+        expr: AUTH_ID
+        data_type: VARCHAR(20)
+      - name: AUTH_STATUS
+        expr: AUTH_STATUS
+        data_type: VARCHAR(20)
+      - name: AUTH_TYPE
+        expr: AUTH_TYPE
+        data_type: VARCHAR(50)
+      - name: CPT_CODES
+        expr: CPT_CODES
+        data_type: VARCHAR(200)
+      - name: DIAGNOSIS_CODES
+        expr: DIAGNOSIS_CODES
+        data_type: VARCHAR(200)
+      - name: GROUP_NPI
+        expr: GROUP_NPI
+        data_type: VARCHAR(15)
+      - name: MEMBER_ID
+        expr: MEMBER_ID
+        data_type: VARCHAR(20)
+      - name: NOTES
+        expr: NOTES
+        data_type: VARCHAR(500)
+      - name: PAYER_ID
+        expr: PAYER_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_ID
+        expr: PROVIDER_ID
+        data_type: VARCHAR(20)
+      - name: PROVIDER_NPI
+        expr: PROVIDER_NPI
+        data_type: VARCHAR(15)
+      - name: SERVICE_CATEGORY
+        expr: SERVICE_CATEGORY
+        data_type: VARCHAR(50)
+      - name: UNITS_APPROVED
+        expr: UNITS_APPROVED
+        data_type: "NUMBER(38,0)"
+      - name: UNITS_USED
+        expr: UNITS_USED
+        data_type: "NUMBER(38,0)"
+    time_dimensions:
+      - name: CREATED_AT
+        expr: CREATED_AT
+        data_type: TIMESTAMP_NTZ(9)
+      - name: DECISION_DATE
+        expr: DECISION_DATE
+        data_type: DATE
+      - name: REQUESTED_DATE
+        expr: REQUESTED_DATE
+        data_type: DATE
+      - name: VALID_FROM
+        expr: VALID_FROM
+        data_type: DATE
+      - name: VALID_TO
+        expr: VALID_TO
+        data_type: DATE
+relationships:
+  - name: APPEAL_DRAFTS_TO_DENIALS
+    left_table: APPEAL_DRAFTS
+    right_table: DENIALS
+    relationship_columns:
+      - left_column: DENIAL_ID
+        right_column: DENIAL_ID
+  - name: CLAIMS_TO_MEMBERS
+    left_table: CLAIMS
+    right_table: MEMBERS
+    relationship_columns:
+      - left_column: MEMBER_ID
+        right_column: MEMBER_ID
+  - name: DENIALS_TO_CLAIMS
+    left_table: DENIALS
+    right_table: CLAIMS
+    relationship_columns:
+      - left_column: CLAIM_ID
+        right_column: CLAIM_ID
+  - name: DENIAL_NOTES_TO_DENIALS
+    left_table: DENIAL_NOTES
+    right_table: DENIALS
+    relationship_columns:
+      - left_column: DENIAL_ID
+        right_column: DENIAL_ID
+  - name: DENIAL_WORK_ITEMS_TO_DENIALS
+    left_table: DENIAL_WORK_ITEMS
+    right_table: DENIALS
+    relationship_columns:
+      - left_column: DENIAL_ID
+        right_column: DENIAL_ID
+  - name: PRIOR_AUTH_TO_MEMBERS
+    left_table: PRIOR_AUTH
+    right_table: MEMBERS
+    relationship_columns:
+      - left_column: MEMBER_ID
+        right_column: MEMBER_ID
+verified_queries:
+  - name: '"0;1"'
+    sql: "SELECT dh.DENIAL_CODE, dh.DENIAL_GROUP, dh.PAYER_ID, dh.OVERTURN_RATE_PCT, dh.TOTAL_DENIALS, dh.OVERTURNED_COUNT FROM denial_history AS dh WHERE dh.OVERTURN_RATE_PCT > 50 ORDER BY dh.OVERTURN_RATE_PCT DESC"
+    question: Which denial codes have the highest overturn rates above 50%?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: '"1;1"'
+    sql: "SELECT d.DENIAL_CODE, d.DENIAL_GROUP, COUNT(*) AS denial_count, SUM(d.DENIAL_AMOUNT) AS total_denied FROM denials AS d GROUP BY d.DENIAL_CODE, d.DENIAL_GROUP ORDER BY total_denied DESC"
+    question: What are the top denial codes by total denied amount?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: '"2;1"'
+    sql: "SELECT wi.STATUS, wi.PRIORITY, COUNT(*) AS item_count FROM denial_work_items AS wi GROUP BY wi.STATUS, wi.PRIORITY ORDER BY item_count DESC"
+    question: How many work items are in each status and priority combination?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: '"3;1"'
+    sql: "SELECT c.PAYER_ID, c.PROVIDER_NAME, d.DENIAL_CODE, d.DENIAL_REASON, d.DENIAL_AMOUNT, d.DENIAL_DATE FROM denials AS d JOIN claims AS c ON d.CLAIM_ID = c.CLAIM_ID WHERE d.DENIAL_DATE >= DATEADD(DAY, -30, CURRENT_DATE) ORDER BY d.DENIAL_AMOUNT DESC"
+    question: What are the recent denials in the last 30 days with claim details?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: '"4;1"'
+    sql: "SELECT pa.AUTH_ID, pa.AUTH_STATUS, pa.SERVICE_CATEGORY, pa.VALID_FROM, pa.VALID_TO, pa.UNITS_APPROVED, pa.UNITS_USED FROM prior_auth AS pa WHERE pa.AUTH_STATUS = 'APPROVED' AND pa.VALID_TO >= CURRENT_DATE"
+    question: What active prior authorizations are currently approved?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: '"5;1"'
+    sql: "SELECT ct.PAYER_ID, ct.PLAN_ID, ct.FILING_LIMIT_DAYS, ct.APPEAL_WINDOW_DAYS, ct.TIMELY_FILING_DAYS FROM contracts AS ct WHERE ct.TERM_DATE >= CURRENT_DATE OR ct.TERM_DATE IS NULL"
+    question: What are the filing deadlines and appeal windows for active contracts?
+    verified_at: 1777486360
+    verified_by: Semantic Model Generator
+    use_as_onboarding_question: false
+  - name: VQR_OVERTURN_RATES_ALL_PAYERS
+    sql: "SELECT dh.DENIAL_CODE, dh.DENIAL_GROUP, dh.PAYER_ID, dh.OVERTURN_RATE_PCT, dh.TOTAL_DENIALS, dh.OVERTURNED_COUNT FROM denial_history AS dh WHERE dh.TOTAL_DENIALS >= 1 ORDER BY dh.OVERTURN_RATE_PCT DESC LIMIT 10"
+    question: Which denial codes have the highest overturn rates across all payers?
+    verified_at: 1746388800
+    verified_by: CortexCode
+    use_as_onboarding_question: true
+  - name: VQR_REVENUE_AT_RISK_30_DAYS
+    sql: "SELECT d.CLAIM_ID, d.DENIAL_CODE, d.DENIAL_AMOUNT, d.DENIAL_DATE, ct.APPEAL_WINDOW_DAYS, DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE) AS APPEAL_DEADLINE, DATEDIFF(DAY, CURRENT_DATE, DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE)) AS DAYS_REMAINING FROM denials AS d JOIN claims AS c ON d.CLAIM_ID = c.CLAIM_ID JOIN contracts AS ct ON c.PAYER_ID = ct.PAYER_ID WHERE DATEDIFF(DAY, CURRENT_DATE, DATEADD(DAY, ct.APPEAL_WINDOW_DAYS, d.DENIAL_DATE)) BETWEEN 0 AND 30 ORDER BY d.DENIAL_AMOUNT DESC"
+    question: How much revenue is at risk from claims expiring in the next 30 days?
+    verified_at: 1746388800
+    verified_by: CortexCode
+    use_as_onboarding_question: true
+  - name: VQR_TOP5_ROOT_CAUSES_BY_AMOUNT
+    sql: "SELECT d.DENIAL_CODE, d.DENIAL_REASON, COUNT(*) AS denial_count, SUM(d.DENIAL_AMOUNT) AS total_denied_amount FROM denials AS d GROUP BY d.DENIAL_CODE, d.DENIAL_REASON ORDER BY total_denied_amount DESC LIMIT 5"
+    question: What are the top 5 root causes of denials by dollar amount?
+    verified_at: 1746388800
+    verified_by: CortexCode
+    use_as_onboarding_question: true
+  - name: VQR_DENIAL_RATES_BY_PAYER_PRIOR_AUTH
+    sql: "SELECT c.PAYER_ID, d.DENIAL_CODE, COUNT(*) AS denial_count, SUM(d.DENIAL_AMOUNT) AS total_denied_amount FROM denials AS d JOIN claims AS c ON d.CLAIM_ID = c.CLAIM_ID WHERE d.DENIAL_REASON ILIKE '%prior auth%' OR d.DENIAL_REASON ILIKE '%authorization%' GROUP BY c.PAYER_ID, d.DENIAL_CODE ORDER BY total_denied_amount DESC"
+    question: Compare denial rates across payers for prior authorization issues.
+    verified_at: 1746388800
+    verified_by: CortexCode
+    use_as_onboarding_question: true
+  - name: VQR_PROVIDERS_HIGHEST_DENIAL_VOLUME
+    sql: "SELECT c.PROVIDER_NAME, COUNT(*) AS denial_count, SUM(d.DENIAL_AMOUNT) AS total_denied_amount FROM denials AS d JOIN claims AS c ON d.CLAIM_ID = c.CLAIM_ID WHERE d.DENIAL_DATE >= DATE_TRUNC('QUARTER', CURRENT_DATE) GROUP BY c.PROVIDER_NAME ORDER BY denial_count DESC"
+    question: Which providers have the highest denial volume this quarter?
+    verified_at: 1746388800
+    verified_by: CortexCode
+    use_as_onboarding_question: true

@@ -36,6 +36,7 @@ echo "  WAREHOUSE:         $WAREHOUSE"
 echo "  COMPUTE_POOL:      $COMPUTE_POOL"
 echo "  SNOWFLAKE_ACCOUNT: $SNOWFLAKE_ACCOUNT"
 echo "  CORTEX_HOST:       $CORTEX_HOST"
+echo "  DEPLOY_ROLE:       ${DEPLOY_ROLE:-<unset — will use session role>}"
 echo ""
 
 REGISTRY="${SNOWFLAKE_ACCOUNT}.registry.snowflakecomputing.com"
@@ -66,6 +67,28 @@ replace_in_files "__PLATFORM_ENDPOINT__"       "${PLATFORM_ENDPOINT:-__PLATFORM_
 replace_in_files "__YOUR_SNOWFLAKE_PAT__"      "${SNOWFLAKE_PAT:-__YOUR_SNOWFLAKE_PAT__}" "$ROOT_DIR/sql"
 replace_in_files "__APP_IMAGE_REPO_URL__"      "$APP_IMAGE_REPO_URL"      "$ROOT_DIR/sql"
 replace_in_files "__PLATFORM_IMAGE_REPO_URL__" "$PLATFORM_IMAGE_REPO_URL" "$ROOT_DIR/sql"
+
+# DEPLOY_ROLE is handled specially: the SQL files carry a full `USE ROLE __DEPLOY_ROLE__;`
+# statement. Substituting an empty role would emit the invalid `USE ROLE ;`, so when
+# DEPLOY_ROLE is unset we comment the statement out instead. This lets the scripts run
+# in restricted sessions (e.g. Snowsight worksheets, or a role that cannot USE ROLE
+# SYSADMIN) without hand-editing every file first.
+if [ -n "${DEPLOY_ROLE:-}" ]; then
+    replace_in_files "USE ROLE __DEPLOY_ROLE__;" "USE ROLE ${DEPLOY_ROLE};" "$ROOT_DIR/sql"
+else
+    replace_in_files "USE ROLE __DEPLOY_ROLE__;" \
+        "-- USE ROLE skipped: DEPLOY_ROLE unset in deploy.env; using the session's current role." \
+        "$ROOT_DIR/sql"
+fi
+
+# SNOWFLAKE_REGIONAL_HOST is optional. When provided it is appended to the Cortex
+# egress rule so the app can reach the Cortex Agent API whether it resolved its host
+# from CORTEX_HOST (account URL) or from SNOWFLAKE_HOST (regional URL).
+if [ -n "${SNOWFLAKE_REGIONAL_HOST:-}" ]; then
+    replace_in_files "__REGIONAL_HOST_ENTRY__" ", '${SNOWFLAKE_REGIONAL_HOST}:443'" "$ROOT_DIR/sql"
+else
+    replace_in_files "__REGIONAL_HOST_ENTRY__" "" "$ROOT_DIR/sql"
+fi
 
 replace_in_files "__APP_DATABASE__"  "$APP_DATABASE"  "$ROOT_DIR/react-app/semantic_model"
 replace_in_files "__APP_SCHEMA__"    "$APP_SCHEMA"    "$ROOT_DIR/react-app/semantic_model"
