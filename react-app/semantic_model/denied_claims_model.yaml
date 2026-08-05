@@ -1,3 +1,44 @@
+# =============================================================================
+# STALE — NOT USED BY THE DEPLOYMENT. Kept for reference only.
+#
+# This is the legacy Cortex Analyst stage-API model. It is NOT deployed, for two
+# reasons:
+#
+#   1. It references 21 columns that do not exist in the schema created by
+#      sql/02_tables.sql, across 6 of its 9 tables:
+#        claims          CLAIM_STATUS            (actual: STATUS)
+#        members         ENROLLMENT_DATE         (actual: EFFECTIVE_DATE)
+#                        TERMINATION_DATE        (actual: TERM_DATE)
+#        prior_auth      CPT_CODE                (actual: CPT_CODES)
+#                        EFFECTIVE_DATE          (actual: VALID_FROM)
+#                        EXPIRATION_DATE         (actual: VALID_TO)
+#                        AUTH_REFERENCE, PLAN_ID (no equivalent)
+#        contracts       EXPIRATION_DATE         (actual: TERM_DATE)
+#                        NOTES                   (actual: COVERAGE_NOTES?)
+#                        PAYER_NAME, CONTRACT_NAME,
+#                        AUTH_LOOKBACK_DAYS      (no equivalent)
+#        denial_history  TOTAL_APPEALED          (actual: APPEAL_COUNT)
+#                        TOTAL_OVERTURNED        (actual: OVERTURNED_COUNT)
+#                        HISTORY_ID, NOTES,
+#                        DENIAL_REASON,
+#                        AVG_RESOLUTION_DAYS     (no equivalent)
+#        denials         FILING_DEADLINE,
+#                        APPEAL_DEADLINE         (no equivalent — these power the
+#                                                 *_days_remaining measures and 2
+#                                                 verified queries)
+#
+#   2. It is written in the Cortex Analyst spec, not the Semantic View spec
+#      (measures + default_aggregation + join_type + relationship_type, and
+#      verified_at as a date string).
+#
+# The deployed definition is denied_claims_semantic_view.yaml, which is
+# schema-accurate and validated against SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML.
+#
+# Re-curating this file (restoring the synonyms and descriptions on top of the
+# real schema, and deciding how to derive the missing deadline columns) is
+# tracked separately — it needs data-modelling decisions, not a mechanical port.
+# =============================================================================
+
 name: denied_claims_model
 description: >
   Semantic model for the Denied Claims Handling system. Covers denials, claims, members,

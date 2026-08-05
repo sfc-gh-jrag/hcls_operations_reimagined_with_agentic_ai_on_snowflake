@@ -466,7 +466,21 @@ def _build_system_prompt(claim_context: dict | None) -> str:
 
 @app.post("/data/chat")
 async def chat(body: ChatRequest):
-    cortex_host = os.environ.get("CORTEX_HOST", os.environ.get("SNOWFLAKE_HOST", ""))
+    # CORTEX_HOST is the account URL; SNOWFLAKE_HOST (the SPCS-provided fallback) is
+    # the regional URL. They are different strings, and only hosts listed in the
+    # CORTEX_API_EGRESS network rule are reachable. Log which one we resolved so a
+    # blocked egress is diagnosable instead of surfacing as a bare stream error.
+    cortex_host = os.environ.get("CORTEX_HOST") or os.environ.get("SNOWFLAKE_HOST", "")
+    if not os.environ.get("CORTEX_HOST"):
+        logger.warning(
+            "CORTEX_HOST is not set; falling back to SNOWFLAKE_HOST=%r. This regional "
+            "host must be present in the CORTEX_API_EGRESS network rule (see "
+            "SNOWFLAKE_REGIONAL_HOST in deploy.env.example) or the Cortex Agent call "
+            "will be blocked.",
+            cortex_host,
+        )
+    logger.info("Cortex Agent host resolved to %r", cortex_host)
+
     pat = os.environ.get("CORTEX_CODE_PAT", "")
     token_path = Path("/snowflake/session/token")
     if pat:

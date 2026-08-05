@@ -4,7 +4,7 @@
 -- This creates network rules, EAI, secrets, and both SPCS services.
 -- =============================================================================
 
-USE ROLE SYSADMIN;
+USE ROLE __DEPLOY_ROLE__;
 
 -- =============================================================================
 -- 1. PLATFORM SERVICE INFRASTRUCTURE (Cortex Code Agent SDK)
@@ -70,10 +70,23 @@ CREATE OR REPLACE NETWORK RULE __APP_DATABASE__.SPCS.CORTEX_CODE_API_EGRESS
     VALUE_LIST = ('__PLATFORM_ENDPOINT__:443');
 
 -- Network rule for Cortex Agent API (direct Cortex AI calls from the app)
+--
+-- Two host forms are allowed on purpose. The app resolves its Cortex host as
+-- `CORTEX_HOST` and falls back to `SNOWFLAKE_HOST` (see react-app/server/main.py).
+-- Inside SPCS those are NOT the same string:
+--   CORTEX_HOST    -> myorg-myaccount.snowflakecomputing.com        (account URL)
+--   SNOWFLAKE_HOST -> ab12345.us-west-2.aws.snowflakecomputing.com  (regional URL)
+-- If only the account URL were allowed and the container ever came up without
+-- CORTEX_HOST set, egress to the Cortex Agent API would be blocked and the UI
+-- would show a generic "error occurred reaching the agent" with nothing useful in
+-- the logs. Allowing both forms removes that failure mode.
+--
+-- __SNOWFLAKE_REGIONAL_HOST__ is optional; configure.sh collapses this to just the
+-- account URL when it is not set in deploy.env.
 CREATE OR REPLACE NETWORK RULE __APP_DATABASE__.SPCS.CORTEX_API_EGRESS
     MODE = EGRESS
     TYPE = HOST_PORT
-    VALUE_LIST = ('__CORTEX_HOST__:443');
+    VALUE_LIST = ('__CORTEX_HOST__:443'__REGIONAL_HOST_ENTRY__);
 
 CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION DENIED_CLAIMS_APP_EAI
     ALLOWED_NETWORK_RULES = (

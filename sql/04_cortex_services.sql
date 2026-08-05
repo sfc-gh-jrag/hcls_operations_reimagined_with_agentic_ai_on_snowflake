@@ -3,7 +3,7 @@
 -- Run AFTER 03_seed_data.sql
 -- =============================================================================
 
-USE ROLE SYSADMIN;
+USE ROLE __DEPLOY_ROLE__;
 USE DATABASE __APP_DATABASE__;
 USE SCHEMA __APP_SCHEMA__;
 USE WAREHOUSE __WAREHOUSE__;
@@ -30,19 +30,30 @@ CREATE OR REPLACE CORTEX SEARCH SERVICE PAYER_DOC_SEARCH
 
 -- =============================================================================
 -- 2. SEMANTIC VIEW (Cortex Analyst — natural language SQL)
--- Note: The semantic model YAML uses __APP_DATABASE__ and __APP_SCHEMA__
--- placeholders that are replaced by configure.sh before uploading.
+--
+-- The semantic view is defined by react-app/semantic_model/denied_claims_semantic_view.yaml
+-- (the Semantic View spec). Its __APP_DATABASE__ / __APP_SCHEMA__ placeholders are
+-- replaced by scripts/configure.sh.
+--
+-- NOTE: `CREATE SEMANTIC VIEW ... FROM SEMANTIC MODEL @stage/file.yaml` is not valid
+-- syntax. Use the SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML stored procedure and pass the
+-- YAML contents as a dollar-quoted literal.
+--
+-- Because the YAML has to be inlined, this step is driven by a script rather than
+-- being runnable standalone here:
+--
+--   scripts/deploy_semantic_view.sh
+--
+-- To validate a YAML edit without creating anything, pass TRUE as the third argument:
+--
+--   CALL SYSTEM$CREATE_SEMANTIC_VIEW_FROM_YAML(
+--       '__APP_DATABASE__.__APP_SCHEMA__',
+--       $yaml$ <contents of denied_claims_semantic_view.yaml> $yaml$,
+--       TRUE);
+--
+-- A successful validation returns:
+--   "YAML file is valid for creating a semantic view. No object has been created yet."
 -- =============================================================================
-
--- Upload the configured semantic model to stage
--- This is done by the build_and_push.sh script:
---   PUT 'file://react-app/semantic_model/denied_claims_model.yaml'
---       '@__APP_DATABASE__.__APP_SCHEMA__.MODELS'
---       OVERWRITE=TRUE AUTO_COMPRESS=FALSE;
-
--- Create the semantic view referencing the stage model
-CREATE OR REPLACE SEMANTIC VIEW __APP_DATABASE__.__APP_SCHEMA__.DENIED_CLAIMS_AGENT_SV
-    FROM SEMANTIC MODEL @__APP_DATABASE__.__APP_SCHEMA__.MODELS/denied_claims_model.yaml;
 
 -- =============================================================================
 -- VERIFICATION

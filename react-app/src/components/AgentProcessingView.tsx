@@ -83,25 +83,42 @@ export function AgentProcessingView() {
 
   useEffect(() => {
     fetch("/api/agents")
-      .then((r) => r.json())
-      .then((data: AgentPersona[]) => {
-        setPersonas(data);
-        const live = data.find((p) => p.is_live);
-        if (live) setSelectedPersona(live.name);
-        else if (data.length > 0) setSelectedPersona(data[0].name);
+      .then(async (r) => {
+        // A 401/403/502 from the platform proxy returns an error *object*, not an
+        // array. Without this guard `setPersonas` stores a non-array and the
+        // `personas.find(...)` call during render throws, blanking the whole app.
+        if (!r.ok) throw new Error(`/api/agents returned ${r.status}`);
+        return r.json();
       })
-      .catch(() => {});
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) throw new Error("/api/agents did not return an array");
+        const list = data as AgentPersona[];
+        setPersonas(list);
+        const live = list.find((p) => p.is_live);
+        if (live) setSelectedPersona(live.name);
+        else if (list.length > 0) setSelectedPersona(list[0].name);
+      })
+      .catch((err) => {
+        console.error("Failed to load agent personas:", err);
+        setPersonas([]);
+      });
   }, []);
 
   const loadDenials = () => {
     fetch("/data/queue?unprocessed=true")
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`/data/queue returned ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
-        const rows = data.denials || [];
+        const rows = Array.isArray(data?.denials) ? data.denials : [];
         setDenials(rows);
         if (rows.length > 0) setSelectedClaimId(rows[0].CLAIM_ID);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Failed to load denial queue:", err);
+        setDenials([]);
+      });
   };
 
   useEffect(() => { loadDenials(); }, []);

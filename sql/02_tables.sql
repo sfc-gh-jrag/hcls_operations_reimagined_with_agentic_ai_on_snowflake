@@ -4,7 +4,7 @@
 -- All __PLACEHOLDERS__ are replaced by scripts/configure.sh
 -- =============================================================================
 
-USE ROLE SYSADMIN;
+USE ROLE __DEPLOY_ROLE__;
 USE DATABASE __APP_DATABASE__;
 USE SCHEMA __APP_SCHEMA__;
 USE WAREHOUSE __WAREHOUSE__;

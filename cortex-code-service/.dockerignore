@@ -1,0 +1,38 @@
+# Build context exclusions for the cortex-code-service image.
+#
+# This Dockerfile uses explicit `COPY app/ tools/ .cortex/` rather than `COPY . .`,
+# so the blast radius is smaller than react-app — but excluding compiled Python
+# keeps host .pyc files from shadowing freshly copied sources, and keeps the build
+# context small (the Cortex Code SDK layer is already large).
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Virtualenvs
+.venv
+venv
+env
+
+# VCS / tooling
+.git
+.gitignore
+.dockerignore
+
+# Local env and secrets (never bake into an image)
+.env
+.env.*
+!.env.example
+connections.toml
+
+# Editor / OS cruft
+.DS_Store
+.vscode
+.idea
+*.swp
+
+# Docs
+*.md
